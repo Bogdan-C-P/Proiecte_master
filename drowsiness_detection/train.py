@@ -29,18 +29,26 @@ if __name__ == '__main__':
         ]),
     }
 
-    data_dir = 'dataset_2'
+    #data_dir = 'dataset_2'
+    #data_dir = 'poze_grayscale_2'
+    data_dir = "mixed_datasets"
     image_datasets_train = datasets.ImageFolder(os.path.join(data_dir, 'train'),
                                                 data_transforms['train'])
 
     image_datasets_val = datasets.ImageFolder(os.path.join(data_dir, 'val'),
                                               data_transforms['val'])
 
-    batch_size=32
+    image_datasets_test = datasets.ImageFolder(os.path.join(data_dir, 'test'),
+                                               data_transforms['val'])
+
+    batch_size = 32
     train_dataloader = torch.utils.data.DataLoader(image_datasets_train, batch_size=batch_size,
                                                    shuffle=True, num_workers=1)
 
-    test_dataloader = torch.utils.data.DataLoader(image_datasets_val, batch_size=batch_size,
+    val_dataloader = torch.utils.data.DataLoader(image_datasets_val, batch_size=batch_size,
+                                                  shuffle=True, num_workers=1)
+
+    test_dataloader = torch.utils.data.DataLoader(image_datasets_test, batch_size=batch_size,
                                                   shuffle=True, num_workers=1)
 
     dataset_sizes_train = len(image_datasets_train)
@@ -85,7 +93,7 @@ if __name__ == '__main__':
         for epoch in range(num_epochs):
             iters.append(epoch)
             # Each epoch has a training and validation phase
-            print("Epoch: ",epoch+1,"/",num_epochs)
+            print("Epoch: ", epoch+1, "/", num_epochs)
             for phase in ['train', 'val']:
                 if phase == 'train':
                     model.train()  # Set model to training mode
@@ -120,7 +128,7 @@ if __name__ == '__main__':
                 running_loss = 0.0
                 running_corrects = 0
                 if phase == "val":
-                    for inputs, labels in test_dataloader:
+                    for inputs, labels in val_dataloader:
                         inputs = inputs.to(device)
                         labels = labels.to(device)
                         optimizer.zero_grad()
@@ -144,26 +152,44 @@ if __name__ == '__main__':
             time_elapsed // 60, time_elapsed % 60))
         print('Best val Acc: {:4f}'.format(best_acc))
 
+        model.eval()
+        running_loss = 0.0
+        running_corrects = 0
+        for inputs, labels in test_dataloader:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            optimizer.zero_grad()
+            with torch.no_grad():
+                outputs = model(inputs)
+                _, preds = torch.max(outputs, 1)
+                loss = criterion(outputs, labels)
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data)
+        epoch_loss = running_loss / len(image_datasets_test)
+        loss_vector_validation.append(epoch_loss)
+        epoch_acc = running_corrects.double() / len(image_datasets_test)
+        print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+            'Test', epoch_loss, epoch_acc))
         # load best model weights
         model.load_state_dict(best_model_wts)
         return model
 
 
-    def visualize_model(model, num_images=6):
+    def visualize_model(model, loader, num_images=6):
         was_training = model.training
         model.eval()
         images_so_far = 0
         fig = plt.figure()
 
         with torch.no_grad():
-            for i, (inputs, labels) in enumerate(test_dataloader):
+            for i, (inputs, labels) in enumerate(loader):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
                 outputs = model(inputs)
                 _, preds = torch.max(outputs, 1)
                 m=nn.Softmax(dim=1)
-                probabily, indexes=torch.max(m(outputs),1)
+                probabily, indexes = torch.max(m(outputs), 1)
                 for j in range(len(probabily)):
                     if probabily[j] < 0.4:
                         preds[j] = 999999
@@ -206,16 +232,17 @@ if __name__ == '__main__':
 
     # Observe that only parameters of final layer are being optimized as
     # opposed to before.
-    optimizer_conv = optim.SGD(model_conv.fc.parameters(), lr=0.01, momentum=0.9)
+    #optimizer_conv = optim.SGD(model_conv.fc.parameters(), lr=0.01, momentum=0.9)
+    optimizer_conv = torch.optim.Adam(model_conv.fc.parameters(), lr=0.01)
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=5, gamma=0.3) #83%acuratețe
-    #optimizer_conv = torch.optim.Adam(model_conv.fc.parameters(), lr=0.01)
+
     # Decay LR by a factor of 0.1 every 7 epochs
     #exp_lr_scheduler = lr_scheduler.StepLR(optimizer_conv, step_size=5, gamma=0.3)
 
     model_conv = train_model(model_conv, criterion, optimizer_conv,
                              exp_lr_scheduler, num_epochs=5)
-    torch.save(model_conv.state_dict(), "proiect_acabi.pth")
-    visualize_model(model_conv)
+    torch.save(model_conv.state_dict(), "proiect_acabi_achizitii_mixed.pth")
+    visualize_model(model_conv, test_dataloader)
     print(loss_vector_validation)
     print(loss_vector_tran)
     print(iters)
