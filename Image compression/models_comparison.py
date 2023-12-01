@@ -1,10 +1,18 @@
 import torch
 from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
-from train_autoencoder_interp import Autoencoder_interpolate
+from train_end_to_end_interp import Autoencoder_interpolate
 from train_autoencoder_basic import Autoencoder_basic
-from train_autoencoder_with_jpeg import Autoencoder_jpeg, apply_jpeg_on_encoding
-from train_attention import Autoencoder_with_attention
+from attention_AE import Autoencoder_Attention
+from train_autoencoder_with_jpeg import End_to_end_jpeg, apply_jpeg_on_encoding
+from train_end_to_end_with_attention import End_to_end_with_attention
+from jpeg_with_attention import JPG_with_attention
+from skimage.metrics import structural_similarity as ssim
+import numpy as np
+import sys
+import cv2
+
+
 img_transform = transforms.Compose([
     transforms.ToTensor(),
 ])
@@ -42,23 +50,33 @@ model_basic = Autoencoder_basic().to(device).eval()
 model_basic.load_state_dict(torch.load('conv_autoencoder_basic.pth'))
 model_basic.eval()
 
-model_with_jpeg = Autoencoder_jpeg().to(device)
-model_with_jpeg.load_state_dict(torch.load('conv_autoencoder_jpeg.pth'))
+model_with_jpeg = End_to_end_jpeg().to(device)
+model_with_jpeg.load_state_dict(torch.load('conv_end_to_end_jpeg.pth'))
 model_with_jpeg.eval()
 
-model_attention = Autoencoder_with_attention().to(device).eval()
-model_attention.load_state_dict(torch.load('conv_autoencoder_attention.pth'))
+model_attention = End_to_end_with_attention().to(device).eval()
+model_attention.load_state_dict(torch.load('End_to_end_with_attention.pth'))
 model_attention.eval()
 
+
+AE_with_attention = Autoencoder_Attention().to(device).eval()
+AE_with_attention.load_state_dict(torch.load('attention_AE_model.pth'))
+AE_with_attention.eval()
+
+jpg_with_attention = JPG_with_attention().to(device).eval()
+jpg_with_attention.load_state_dict(torch.load('jpeg_with_attention.pth'))
+jpg_with_attention.eval()
 
 with torch.no_grad():
     linear_out = model_basic(img)[1].cpu().data
     jpeg_out = model_with_jpeg(img)[1].cpu().data
+    ae_attention_output = AE_with_attention(img)[1].cpu().data
+    jpg_with_attention_output = jpg_with_attention(img)[1].cpu().data
 
     # For interpolation at inference we replace interpolation with jpeg compression
     encoding = model_interpolate.encoder_f(img).squeeze(0)
-    jpeg_interpolation = apply_jpeg_on_encoding(encoding).unsqueeze(0)
-    interpolate_out = model_interpolate.decoder_f(jpeg_interpolation)
+    jpeg_interpolation_1 = apply_jpeg_on_encoding(encoding).unsqueeze(0)
+    interpolate_out = model_interpolate.decoder_f(jpeg_interpolation_1)
 
     encoding = model_attention.apply_attention(model_attention.encoder_f(img)).squeeze(0)
     jpeg_interpolation = apply_jpeg_on_encoding(encoding).unsqueeze(0)
@@ -66,8 +84,6 @@ with torch.no_grad():
 
 #   DE ADAUGAT CALCUL METRICI SSIM
 
-from skimage.metrics import structural_similarity as ssim
-import numpy as np
 
 def make_img(img):
     orig_img = to_img(img).cpu().squeeze(0).permute((1, 2, 0)).numpy()
@@ -77,34 +93,65 @@ def make_img(img):
     orig_img = np.uint8(np.round(converted_to_255))
     return orig_img
 
-plt.figure(figsize=(16, 5))
 
-plt.subplot(1, 5, 1)
+plt.figure(figsize=(16, 7))
+
+plt.subplot(1, 7, 1)
 orig_img = make_img(img)
 plt.imshow(orig_img)
-plt.title('Original image')
+print("Size of orig image: ", sys.getsizeof(orig_img))
+encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
+result, encimg = cv2.imencode('.jpg', orig_img, encode_param)
+plt.title('Original image \n Size of comp:' + str(sys.getsizeof(encimg)))
 plt.axis('off')
 
-plt.subplot(1, 5, 2)
+plt.subplot(1, 7, 2)
 AE_image = make_img(linear_out)
-#ssim_index, _ = ssim(orig_img, AE_image, win_size=min(AE_image.shape[:2]) // 7 * 2 + 1, full=True)
+ssim_index, _ = ssim(orig_img, AE_image, win_size=3, multichannel=True, full=True)
 plt.imshow(AE_image)
-plt.title('Basic AE \n SSIM: ') #+ str(ssim_index))
-plt.axis('off')
-
-plt.subplot(1, 5, 3)
-plt.imshow(to_img(interpolate_out).cpu().squeeze(0).permute((1, 2, 0)))
-plt.title('AE + Interpolation')
-plt.axis('off')
-
-plt.subplot(1, 5, 4)
-plt.imshow(to_img(jpeg_out).cpu().squeeze(0).permute((1, 2, 0)))
-plt.title('AE + JPEG')
+plt.title('Basic AE \nSSIM: ' + str(round(ssim_index, 3))
+          + '\nSize of comp:' + str(sys.getsizeof(model_basic.encoder(img))))
 plt.axis('off')
 
 
-plt.subplot(1, 5, 5)
-plt.imshow(to_img(attention_out).cpu().squeeze(0).permute((1, 2, 0)))
-plt.title('AE + JPEG + Attention')
+plt.subplot(1, 7, 3)
+ae_attention_output = make_img(ae_attention_output)
+ssim_index, _ = ssim(orig_img, ae_attention_output, win_size=3, multichannel=True, full=True)
+plt.imshow(ae_attention_output)
+memory = sys.getsizeof(AE_with_attention.linear(AE_with_attention.encoder(img))) \
+         + sys.getsizeof(AE_with_attention.attention(AE_with_attention.encoder(img)))
+plt.title('Basic AE + Attention \n SSIM: ' + str(round(ssim_index, 3))
+          + '\nSize of comp:' + str(memory))
 plt.axis('off')
+
+plt.subplot(1, 7, 4)
+interpolate_out = make_img(interpolate_out)
+ssim_index, _ = ssim(orig_img, interpolate_out, win_size=3, multichannel=True, full=True)
+plt.imshow(interpolate_out)
+plt.title('End to end + Interpolation \n SSIM: ' + str(round(ssim_index, 3))
+          + '\nSize of comp:' + str(sys.getsizeof(jpeg_interpolation_1)))
+plt.axis('off')
+
+plt.subplot(1, 7, 5)
+jpeg_out = make_img(jpeg_out)
+ssim_index, _ = ssim(orig_img, jpeg_out, win_size=3, multichannel=True, full=True)
+plt.imshow(jpeg_out)
+plt.title('End to end + JPEG \n SSIM: ' + str(round(ssim_index, 3)))
+plt.axis('off')
+
+
+plt.subplot(1, 7, 6)
+attention_out = make_img(attention_out)
+ssim_index, _ = ssim(orig_img, attention_out, win_size=3, multichannel=True, full=True)
+plt.imshow(attention_out)
+plt.title('End to end + JPEG + Attention \n SSIM: ' + str(round(ssim_index, 3)))
+plt.axis('off')
+
+plt.subplot(1, 7, 7)
+jpg_with_attention_output = make_img(jpg_with_attention_output)
+ssim_index, _ = ssim(orig_img, jpg_with_attention_output, win_size=3, multichannel=True, full=True)
+plt.imshow(jpg_with_attention_output)
+plt.title('JPG + Attention \n SSIM: ' + str(round(ssim_index, 3)))
+plt.axis('off')
+
 plt.show()
