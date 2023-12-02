@@ -126,7 +126,7 @@ ssim_index, _ = ssim(orig_img, ae_attention_output, win_size=3, multichannel=Tru
 plt.imshow(ae_attention_output)
 memory = sys.getsizeof(AE_with_attention.linear(AE_with_attention.encoder(img))) \
          + sys.getsizeof(AE_with_attention.attention(AE_with_attention.encoder(img)))
-plt.title('Basic AE + Attention \n SSIM: ' + str(round(ssim_index, 3))
+plt.title('AE + Attention \n SSIM: ' + str(round(ssim_index, 3))
           + '\nSize of comp:' + str(memory))
 plt.axis('off')
 
@@ -134,7 +134,7 @@ plt.subplot(1, 8, 4)
 interpolate_out = make_img(interpolate_out)
 ssim_index, _ = ssim(orig_img, interpolate_out, win_size=3, multichannel=True, full=True)
 plt.imshow(interpolate_out)
-plt.title('End to end + Interpolation \n SSIM: ' + str(round(ssim_index, 3))
+plt.title('EndToEnd + Interp \n SSIM: ' + str(round(ssim_index, 3))
           + '\nSize of comp:' + str(sys.getsizeof(jpeg_interpolation_1)))
 plt.axis('off')
 
@@ -142,9 +142,9 @@ plt.subplot(1, 8, 5)
 jpeg_out = make_img(jpeg_out)
 ssim_index, _ = ssim(orig_img, jpeg_out, win_size=3, multichannel=True, full=True)
 plt.imshow(jpeg_out)
-plt.title('End to end + JPEG \n SSIM: ' + str(round(ssim_index, 3))
+plt.title('EndToEnd + JPG \n SSIM: ' + str(round(ssim_index, 3))
            + '\nSize of comp:' + str(sys.getsizeof(apply_jpeg_on_encoding(
-    model_with_jpeg.encoder_f(img).detach().squeeze(0)))))
+           model_with_jpeg.encoder_f(img).detach().squeeze(0)))))
 plt.axis('off')
 
 
@@ -152,7 +152,7 @@ plt.subplot(1, 8, 6)
 attention_out = make_img(attention_out)
 ssim_index, _ = ssim(orig_img, attention_out, win_size=3, multichannel=True, full=True)
 plt.imshow(attention_out)
-plt.title('End to end + JPEG + Attention \n SSIM: ' + str(round(ssim_index, 3))
+plt.title('EndToEnd + JPG + Att \n SSIM: ' + str(round(ssim_index, 3))
             + '\nSize of comp:' + str(sys.getsizeof(jpeg_interpolation)))
 plt.axis('off')
 
@@ -160,7 +160,7 @@ plt.subplot(1, 8, 7)
 jpg_with_attention_output = make_img(jpg_with_attention_output)
 ssim_index, _ = ssim(orig_img, jpg_with_attention_output, win_size=3, multichannel=True, full=True)
 plt.imshow(jpg_with_attention_output)
-plt.title('JPG + Attention \n SSIM: ' + str(round(ssim_index, 3))
+plt.title('JPG + Att \n SSIM: ' + str(round(ssim_index, 3))
           + '\nSize of comp:' + str(sys.getsizeof(apply_jpeg_on_encoding(
             jpg_with_attention.apply_attention(jpg_with_attention.encoder_f(img)).detach().squeeze(0)))))
 plt.axis('off')

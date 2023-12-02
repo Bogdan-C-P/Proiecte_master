@@ -28,14 +28,12 @@ class FCNs(nn.Module):
     def get_pretrained_output(self, x):
         return self.pretrained_net(x)
 
-    def forward(self, x):
-        output = self.get_pretrained_output(x)
+    def get_reconstructed_image(self, output):
         x5 = output['x5']  # size=(N, 512, x.H/32, x.W/32)
         x4 = output['x4']  # size=(N, 512, x.H/16, x.W/16)
         x3 = output['x3']  # size=(N, 256, x.H/8,  x.W/8)
         x2 = output['x2']  # size=(N, 128, x.H/4,  x.W/4)
         x1 = output['x1']  # size=(N, 64, x.H/2,  x.W/2)
-
         score = self.bn1(self.relu(self.deconv1(x5)))     # size=(N, 512, x.H/16, x.W/16)
         score = score + x4                                # element-wise add, size=(N, 512, x.H/16, x.W/16)
         score = self.bn2(self.relu(self.deconv2(score)))  # size=(N, 256, x.H/8, x.W/8)
@@ -45,9 +43,13 @@ class FCNs(nn.Module):
         score = self.bn4(self.relu(self.deconv4(score)))  # size=(N, 64, x.H/2, x.W/2)
         score = score + x1                                # element-wise add, size=(N, 64, x.H/2, x.W/2)
         score = self.bn5(self.relu(self.deconv5(score)))  # size=(N, 32, x.H, x.W)
-        score = self.classifier(score)                    # size=(N, 3, x.H/1, x.W/1)
+        score = self.classifier(score)
+        return score
 
-        return score  # size=(N, n_class, x.H/1, x.W/1)
+    def forward(self, x):
+        output = self.get_pretrained_output(x)
+        recon_img = self.get_reconstructed_image(output)
+        return recon_img
 
 
 class VGGNet(models.VGG):
