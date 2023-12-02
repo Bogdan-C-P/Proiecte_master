@@ -8,6 +8,7 @@ from train_autoencoder_with_jpeg import End_to_end_jpeg, apply_jpeg_on_encoding
 from train_end_to_end_with_attention import End_to_end_with_attention
 from jpeg_with_attention import JPG_with_attention
 from skimage.metrics import structural_similarity as ssim
+from fully_conv import FCNs, VGGNet
 import numpy as np
 import sys
 import cv2
@@ -67,11 +68,18 @@ jpg_with_attention = JPG_with_attention().to(device).eval()
 jpg_with_attention.load_state_dict(torch.load('jpeg_with_attention.pth'))
 jpg_with_attention.eval()
 
+
+vgg_model = VGGNet(requires_grad=True, remove_fc=True)
+FCN = FCNs(pretrained_net=vgg_model).to(device)
+FCN.load_state_dict(torch.load('FCN.pth'))
+
+
 with torch.no_grad():
     linear_out = model_basic(img)[1].cpu().data
     jpeg_out = model_with_jpeg(img)[1].cpu().data
     ae_attention_output = AE_with_attention(img)[1].cpu().data
     jpg_with_attention_output = jpg_with_attention(img)[1].cpu().data
+    FCN_out = FCN(img).cpu().data
 
     # For interpolation at inference we replace interpolation with jpeg compression
     encoding = model_interpolate.encoder_f(img).squeeze(0)
@@ -92,9 +100,9 @@ def make_img(img):
     return orig_img
 
 
-plt.figure(figsize=(16, 7))
+plt.figure(figsize=(16, 8))
 
-plt.subplot(1, 7, 1)
+plt.subplot(1, 8, 1)
 orig_img = make_img(img)
 plt.imshow(orig_img)
 print("Size of orig image: ", sys.getsizeof(orig_img))
@@ -103,7 +111,7 @@ result, encimg = cv2.imencode('.jpg', orig_img, encode_param)
 plt.title('Original image \n Size of comp:' + str(sys.getsizeof(encimg)))
 plt.axis('off')
 
-plt.subplot(1, 7, 2)
+plt.subplot(1, 8, 2)
 AE_image = make_img(linear_out)
 ssim_index, _ = ssim(orig_img, AE_image, win_size=3, multichannel=True, full=True)
 plt.imshow(AE_image)
@@ -112,7 +120,7 @@ plt.title('Basic AE \nSSIM: ' + str(round(ssim_index, 3))
 plt.axis('off')
 
 
-plt.subplot(1, 7, 3)
+plt.subplot(1, 8, 3)
 ae_attention_output = make_img(ae_attention_output)
 ssim_index, _ = ssim(orig_img, ae_attention_output, win_size=3, multichannel=True, full=True)
 plt.imshow(ae_attention_output)
@@ -122,7 +130,7 @@ plt.title('Basic AE + Attention \n SSIM: ' + str(round(ssim_index, 3))
           + '\nSize of comp:' + str(memory))
 plt.axis('off')
 
-plt.subplot(1, 7, 4)
+plt.subplot(1, 8, 4)
 interpolate_out = make_img(interpolate_out)
 ssim_index, _ = ssim(orig_img, interpolate_out, win_size=3, multichannel=True, full=True)
 plt.imshow(interpolate_out)
@@ -130,7 +138,7 @@ plt.title('End to end + Interpolation \n SSIM: ' + str(round(ssim_index, 3))
           + '\nSize of comp:' + str(sys.getsizeof(jpeg_interpolation_1)))
 plt.axis('off')
 
-plt.subplot(1, 7, 5)
+plt.subplot(1, 8, 5)
 jpeg_out = make_img(jpeg_out)
 ssim_index, _ = ssim(orig_img, jpeg_out, win_size=3, multichannel=True, full=True)
 plt.imshow(jpeg_out)
@@ -140,7 +148,7 @@ plt.title('End to end + JPEG \n SSIM: ' + str(round(ssim_index, 3))
 plt.axis('off')
 
 
-plt.subplot(1, 7, 6)
+plt.subplot(1, 8, 6)
 attention_out = make_img(attention_out)
 ssim_index, _ = ssim(orig_img, attention_out, win_size=3, multichannel=True, full=True)
 plt.imshow(attention_out)
@@ -148,13 +156,22 @@ plt.title('End to end + JPEG + Attention \n SSIM: ' + str(round(ssim_index, 3))
             + '\nSize of comp:' + str(sys.getsizeof(jpeg_interpolation)))
 plt.axis('off')
 
-plt.subplot(1, 7, 7)
+plt.subplot(1, 8, 7)
 jpg_with_attention_output = make_img(jpg_with_attention_output)
 ssim_index, _ = ssim(orig_img, jpg_with_attention_output, win_size=3, multichannel=True, full=True)
 plt.imshow(jpg_with_attention_output)
 plt.title('JPG + Attention \n SSIM: ' + str(round(ssim_index, 3))
           + '\nSize of comp:' + str(sys.getsizeof(apply_jpeg_on_encoding(
             jpg_with_attention.apply_attention(jpg_with_attention.encoder_f(img)).detach().squeeze(0)))))
+plt.axis('off')
+
+
+plt.subplot(1, 8, 8)
+FCN_out = make_img(FCN_out)
+ssim_index, _ = ssim(orig_img, jpg_with_attention_output, win_size=3, multichannel=True, full=True)
+plt.imshow(FCN_out)
+plt.title('FCN \n SSIM: ' + str(round(ssim_index, 3))
+          + '\nSize of comp:' + str(sys.getsizeof(FCN.get_pretrained_output(img))))
 plt.axis('off')
 
 plt.show()
